@@ -17,7 +17,7 @@ Electron, Vite, React, TypeScript를 기반으로 하며, 하나의 앱 화면 �
 - 패널 최소화
 - 패널 앞으로 가져오기
 - 레이아웃 초기화
-- 데모 시세/호가/뉴스/계좌 데이터 표시
+- Electron Main Process에서 제공하는 mock 시세/호가/뉴스/계좌 데이터 표시
 
 ## 기술 스택
 
@@ -124,7 +124,7 @@ MVP에서는 하나의 Electron `BrowserWindow` 안에서 React 컴포넌트를 
 
 ## 주의 사항
 
-- 현재 데이터는 데모 데이터입니다.
+- 현재 데이터는 Electron Main Process의 mock 데이터입니다.
 - 실제 주문 기능은 구현되어 있지 않습니다.
 - macOS 코드 서명과 앱 아이콘은 아직 제품 배포 수준으로 정리되지 않았습니다.
-- `release/`, `dist/`, `dist-electron/`, `node_modules/`는 Git 추적 대상이 아닙니다.
+- `release/`, `dist/`, `dist-electron/`, `node_modules/`는 Git 추적 대상이 

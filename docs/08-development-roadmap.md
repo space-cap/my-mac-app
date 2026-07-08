@@ -78,6 +78,11 @@
 - `App.tsx`에 직접 박힌 데모 데이터를 제거한다.
 - 패널은 데이터 소스가 Mock인지 실제 API인지 몰라도 된다.
 
+현재 상태:
+
+- Main Process mock snapshot 제공은 구현됨.
+- Renderer Store 분리와 실시간 구독 모델은 아직 남아 있음.
+
 ## Phase 4. Electron IPC와 서비스 계층
 
 목표:

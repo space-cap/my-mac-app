@@ -124,6 +124,17 @@
   overflow: auto;
 }
 
+.empty-state {
+  display: grid;
+  height: 100%;
+  min-height: 120px;
+  margin: 0;
+  place-items: center;
+  color: #8ea0b3;
+  font-size: 13px;
+  text-align: center;
+}
+
 .market-table {
   width: 100%;
   border-collapse: collapse;

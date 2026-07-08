@@ -1,4 +1,4 @@
-import { MouseEvent, useMemo, useState } from 'react'
+import { MouseEvent, useEffect, useMemo, useState } from 'react'
 import './App.css'
 
 type PanelId = 'watchlist' | 'chart' | 'orderbook' | 'order' | 'news' | 'account'
@@ -29,37 +29,42 @@ const initialPanels: Panel[] = [
   { id: 'account', title: '계좌/잔고', x: 844, y: 440, width: 310, height: 250, z: 6, minimized: false },
 ]
 
-const watchRows = [
-  ['005930', '삼성전자', '79,600', '+1.14%'],
-  ['000660', 'SK하이닉스', '186,200', '+2.42%'],
-  ['035420', 'NAVER', '214,500', '-0.70%'],
-  ['035720', '카카오', '58,100', '+0.35%'],
-  ['207940', '삼성바이오', '832,000', '-1.07%'],
-  ['068270', '셀트리온', '184,300', '+0.88%'],
-]
-
-const orderRows = [
-  ['79,900', '5,210', 'ask'],
-  ['79,800', '8,020', 'ask'],
-  ['79,700', '11,432', 'ask'],
-  ['79,600', '14,820', 'now'],
-  ['79,500', '7,384', 'bid'],
-  ['79,400', '10,692', 'bid'],
-  ['79,300', '6,905', 'bid'],
-]
-
-const newsItems = [
-  '반도체 대형주 강세, 외국인 순매수 확대',
-  '환율 1,320원대 초반 등락, 수출주 변동성 확대',
-  'AI 서버 투자 기대감에 장중 고점 재시도',
-  '오후장 기관 매수세 유입 종목 선별 필요',
-]
-
 function App() {
   const [panels, setPanels] = useState(initialPanels)
   const [dragState, setDragState] = useState<DragState | null>(null)
+  const [marketSnapshot, setMarketSnapshot] = useState<MarketSnapshot | null>(null)
+  const [dataError, setDataError] = useState<string | null>(null)
 
   const maxZ = useMemo(() => Math.max(...panels.map((panel) => panel.z)), [panels])
+
+  useEffect(() => {
+    let active = true
+
+    async function loadMarketSnapshot() {
+      if (!window.marketApi) {
+        setDataError('Electron Preload API를 찾을 수 없습니다.')
+        return
+      }
+
+      try {
+        const snapshot = await window.marketApi.getSnapshot()
+        if (active) {
+          setMarketSnapshot(snapshot)
+          setDataError(null)
+        }
+      } catch {
+        if (active) {
+          setDataError('Main Process mock 데이터를 불러오지 못했습니다.')
+        }
+      }
+    }
+
+    loadMarketSnapshot()
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   const focusPanel = (id: PanelId) => {
     setPanels((current) =>
@@ -120,8 +125,20 @@ function App() {
       <header className="topbar">
         <div>
           <strong>Mac HTS Workspace</strong>
-          <span>KOSPI 2,731.42 ▲ 0.84%</span>
-          <span>USD/KRW 1,326.20 ▼ 0.18%</span>
+          {marketSnapshot ? (
+            <>
+              <span>
+                KOSPI {marketSnapshot.marketSummary.kospi} ▲{' '}
+                {marketSnapshot.marketSummary.kospiChange.replace('+', '')}
+              </span>
+              <span>
+                USD/KRW {marketSnapshot.marketSummary.usdKrw} ▼{' '}
+                {marketSnapshot.marketSummary.usdKrwChange.replace('-', '')}
+              </span>
+            </>
+          ) : (
+            <span>{dataError ?? 'Main Process 데이터 로딩 중'}</span>
+          )}
         </div>
         <button className="ghost-button" onClick={resetLayout}>
           레이아웃 초기화
@@ -153,7 +170,7 @@ function App() {
                 </button>
               </div>
             </header>
-            {!panel.minimized && <div className="panel-body">{renderPanel(panel.id)}</div>}
+            {!panel.minimized && <div className="panel-body">{renderPanel(panel.id, marketSnapshot, dataError)}</div>}
           </article>
         ))}
       </section>
@@ -161,7 +178,11 @@ function App() {
   )
 }
 
-function renderPanel(id: PanelId) {
+function renderPanel(id: PanelId, marketSnapshot: MarketSnapshot | null, dataError: string | null) {
+  if (!marketSnapshot) {
+    return <p className="empty-state">{dataError ?? 'Main Process에서 mock 데이터를 불러오는 중입니다.'}</p>
+  }
+
   switch (id) {
     case 'watchlist':
       return (
@@ -175,12 +196,12 @@ function renderPanel(id: PanelId) {
             </tr>
           </thead>
           <tbody>
-            {watchRows.map(([code, name, price, change]) => (
+            {marketSnapshot.watchlist.map(({ code, name, price, changeRate }) => (
               <tr key={code}>
                 <td>{code}</td>
                 <td>{name}</td>
                 <td>{price}</td>
-                <td className={change.startsWith('+') ? 'up' : 'down'}>{change}</td>
+                <td className={changeRate.startsWith('+') ? 'up' : 'down'}>{changeRate}</td>
               </tr>
             ))}
           </tbody>
@@ -197,11 +218,11 @@ function renderPanel(id: PanelId) {
           </div>
           <div className="chart-grid">
             <div className="chart-line" />
-            {Array.from({ length: 18 }).map((_, index) => (
+            {marketSnapshot.chartCandles.map((candle) => (
               <i
-                className={index % 3 === 0 ? 'candle down-candle' : 'candle up-candle'}
-                key={index}
-                style={{ height: 42 + ((index * 17) % 84) }}
+                className={candle.direction === 'up' ? 'candle up-candle' : 'candle down-candle'}
+                key={candle.id}
+                style={{ height: candle.height }}
               />
             ))}
           </div>
@@ -210,8 +231,8 @@ function renderPanel(id: PanelId) {
     case 'orderbook':
       return (
         <div className="orderbook">
-          {orderRows.map(([price, volume, type]) => (
-            <div className={`quote-row ${type}`} key={`${price}-${type}`}>
+          {marketSnapshot.orderbook.map(({ price, volume, side }) => (
+            <div className={`quote-row ${side}`} key={`${price}-${side}`}>
               <span>{price}</span>
               <strong>{volume}</strong>
             </div>
@@ -223,7 +244,7 @@ function renderPanel(id: PanelId) {
         <form className="order-form">
           <label>
             종목
-            <input value="005930 삼성전자" readOnly />
+            <input value={`${marketSnapshot.selectedSymbol.code} ${marketSnapshot.selectedSymbol.name}`} readOnly />
           </label>
           <label>
             수량
@@ -231,7 +252,7 @@ function renderPanel(id: PanelId) {
           </label>
           <label>
             가격
-            <input value="79,600" readOnly />
+            <input value={marketSnapshot.selectedSymbol.price} readOnly />
           </label>
           <div className="order-actions">
             <button type="button" className="buy">
@@ -246,8 +267,8 @@ function renderPanel(id: PanelId) {
     case 'news':
       return (
         <ul className="news-list">
-          {newsItems.map((item) => (
-            <li key={item}>{item}</li>
+          {marketSnapshot.news.map((item) => (
+            <li key={item.id}>{item.title}</li>
           ))}
         </ul>
       )
@@ -257,15 +278,15 @@ function renderPanel(id: PanelId) {
           <dl>
             <div>
               <dt>총평가</dt>
-              <dd>42,810,000</dd>
+              <dd>{marketSnapshot.account.totalValue}</dd>
             </div>
             <div>
               <dt>평가손익</dt>
-              <dd className="up">+1,284,000</dd>
+              <dd className="up">{marketSnapshot.account.profitLoss}</dd>
             </div>
             <div>
               <dt>주문가능</dt>
-              <dd>8,500,000</dd>
+              <dd>{marketSnapshot.account.orderableCash}</dd>
             </div>
           </dl>
         </div>

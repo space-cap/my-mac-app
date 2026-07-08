@@ -2,15 +2,18 @@
 
 MVP의 데이터는 정적 데모 데이터다. 하지만 이후 실제 서비스를 붙이기 위해서는 화면과 데이터 소스를 지금부터 분리해서 생각해야 한다.
 
-## MVP 데이터 흐름
+## 현재 MVP 데이터 흐름
 
 ```text
-React 컴포넌트
-  -> 로컬 데모 데이터
+Electron Main Process
+  -> Mock Market Data Service
+  -> IPC
+  -> Preload API
+  -> React 컴포넌트
   -> 패널 UI 렌더링
 ```
 
-현재는 `src/App.tsx` 안에 관심종목, 호가, 뉴스 데이터가 직접 들어 있다. 이는 MVP 화면 검증에는 충분하지만, 다음 단계에서는 분리해야 한다.
+현재 mock 데이터는 `electron/services/mock-market-service.ts`에 있으며, Renderer는 `window.marketApi.getSnapshot()`을 통해 스냅샷을 가져온다. 이 구조는 실제 키움 REST API와 WebSocket을 붙일 때도 Renderer 변경을 줄이는 방향이다.
 
 ## 권장 데이터 흐름
 
